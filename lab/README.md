@@ -5,7 +5,7 @@ This fork adds a research-lab layer on top of virattt's aihf engine. Many agents
 fool themselves or each other.
 
 ```
- Hermes profiles (director · quant · redteam · ops) on kanban board `hedge-fund-lab`
+ isolated Hermes (~/.hermes-lab): director · quant · redteam · ops on board `hedge-fund-lab`
                  │  MCP: aihf_lab (12 tools)            human: aihf-lab CLI
                  ▼                                              ▼
  ┌─────────────────────── hedge_fund/lab ───────────────────────────────┐
@@ -23,9 +23,15 @@ fool themselves or each other.
 uv venv .venv --python 3.11 && uv pip install --python .venv/bin/python -e '.[lab]' pytest
 .venv/bin/aihf-lab init --holdout-start 2024-10-26      # default: two years ago
 .venv/bin/python -m pytest hedge_fund/lab -q
-lab/hermes/setup.sh                                      # profiles + MCP + board
-lab/hermes/setup.sh --install-roles                      # after reviewing lab/hermes/roles/*.md
+
+# The agents run on an ISOLATED Hermes (clean clone, own HERMES_HOME), never your everyday one:
+lab/hermes/install-isolated-hermes.sh                    # → ~/Desktop/hermes-lab/bin/hermes-lab
+~/Desktop/hermes-lab/bin/hermes-lab auth add nous --type oauth
+HERMES_BIN=~/Desktop/hermes-lab/bin/hermes-lab lab/hermes/setup.sh                  # profiles + MCP + board
+HERMES_BIN=~/Desktop/hermes-lab/bin/hermes-lab lab/hermes/setup.sh --install-roles  # after reviewing roles/*.md
 ```
+
+See `lab/hermes/README.md` for the team, the isolation and upgrades.
 
 You need a Financial Datasets key, plus one LLM key if a mandate uses LLM analysts.
 aihf reads both from `~/.hedge-fund/.env` (`FINANCIAL_DATASETS_API_KEY=…`).
