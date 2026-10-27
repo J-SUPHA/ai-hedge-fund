@@ -6,8 +6,12 @@ below exists because automated research produces false discoveries by default.
 ## The pipeline (Kanban board `hedge-fund-lab`)
 
 ```
-[hyp]  director   writes a falsifiable hypothesis card
+[farm] director   farms ideas (skill `idea-farming`) → propose_idea → idea ledger
   │
+[hyp]  director   writes a falsifiable hypothesis card for the best ideas
+  │
+[data] quant      only if the data is missing: scrape + import it point-in-time
+  │               (skill `alt-data-ingest`)
 [impl] quant      implements / configures it, runs ≤ 5 registered backtests
   │
 [red]  redteam    tries to kill it (independent re-runs, robustness, code audit)
@@ -17,7 +21,10 @@ below exists because automated research produces false discoveries by default.
 [ops]  ops        deploys a paper fund (human-approved), ticks it, reports
 ```
 
-Card titles start with the stage tag: `[hyp]`, `[impl]`, `[red]`, `[hold]`, `[ops]`.
+Card titles start with the stage tag: `[farm]`, `[hyp]`, `[data]`, `[impl]`, `[red]`, `[hold]`, `[ops]`.
+Every idea lives in the ledger (`propose_idea` / `list_ideas` / `update_idea`):
+set it to `testing`, `needs_data`, `alive` or `dead` as it moves, and a dead idea
+gets its cause of death in the note.
 Every card names its **family** (a short slug for the hypothesis, e.g. `pead-smallcap`).
 Pass that slug as `family` and your profile name as `requested_by` on every
 `run_backtest` call, so the registry ties trials back to the card.
@@ -44,12 +51,23 @@ Pass that slug as `family` and your profile name as `requested_by` on every
 7. **Write down what failed.** A dead hypothesis is a result. Put the reason in
    the card summary so the director never re-queues it.
 
+## Data
+
+The lab scrapes public sources: no vendor API key, no vendor limits
+(`lab_status.data_capabilities` lists exactly what exists):
+Yahoo daily prices, SEC EDGAR point-in-time fundamentals, 8-K earnings
+releases, Form 4 insider trades, company profiles. There is **no news source**:
+scrape it into the alt-data store if an idea needs it. Anything new you scrape
+goes in the alt-data store with a per-row `available_date` (when it became
+public), and analysts read it with `data_client.get_events(name, ticker, end_date=date)`.
+
 ## Tools
 
 - MCP server `aihf_lab` (tools appear as `mcp_aihf_lab_*`): `lab_status`,
   `list_analysts`, `list_strategies`, `validate_mandate`, `run_backtest`,
   `list_trials`, `get_trial`, `candidate_report`, `request_holdout`,
-  `list_holdouts`, `paper_funds`, `paper_scorecard`.
+  `list_holdouts`, `paper_funds`, `paper_scorecard`, `propose_idea`, `list_ideas`,
+  `update_idea`, `list_datasets`, `describe_dataset`.
 - New analyst code lives in a git worktree. The MCP server imports the MAIN
   checkout, so backtest new code from the worktree root with the CLI:
   `<repo>/.venv/bin/python -m hedge_fund.lab.cli backtest mandate.yaml --universe … --family … --hypothesis …`

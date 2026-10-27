@@ -32,6 +32,7 @@ from hedge_fund.data.models import (
     PriceSnapshot,
 )
 from hedge_fund.data.protocol import DataClient
+from hedge_fund.lab import altdata
 
 
 class VaultViolation(PermissionError):
@@ -46,11 +47,14 @@ def _day(stamp: str | None) -> str | None:
 
 
 class VaultedDataClient:
-    def __init__(self, inner: DataClient, *, research_end: str, embargoed: list[str] | None = None) -> None:
+    def __init__(self, inner: DataClient, *, research_end: str, embargoed: list[str] | None = None,
+                 lab_root=None) -> None:
         self._inner = inner
         self.research_end = research_end
         self.embargoed = {t.upper() for t in (embargoed or [])}
         self.violations: list[str] = []
+        self._lab_root = lab_root
+        self.datasets_used: dict[str, str] = {}
 
     # ------------------------------------------------------------------
     # Guards
@@ -121,3 +125,21 @@ class VaultedDataClient:
         self._ticker(ticker)
         self._end(ticker, end_date, "market cap")
         return self._inner.get_market_cap(ticker, end_date)
+
+    # ------------------------------------------------------------------
+    # Lab extension: alt-data events (see hedge_fund/lab/altdata.py)
+    # ------------------------------------------------------------------
+
+    def get_events(self, name: str, ticker: str | None = None, end_date: str = "",
+                   start_date: str | None = None) -> list[dict]:
+        """Rows of alt-dataset *name* that were public by *end_date* (and by the cutoff)."""
+        if self._lab_root is None:
+            raise ValueError("this data client has no alt-data store")
+        if not end_date:
+            raise ValueError("get_events needs end_date (the date you are deciding on)")
+        if ticker:
+            self._ticker(ticker)
+        self._end(ticker or "*", end_date, f"events from {name!r}")
+        self.datasets_used[name] = altdata.meta(self._lab_root, name)["hash"]
+        rows = altdata.query(altdata.load(self._lab_root, name), ticker, end_date, start_date)
+        return [r for r in rows if r["available_date"] <= self.research_end and r["ticker"] not in self.embargoed]

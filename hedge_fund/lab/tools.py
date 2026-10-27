@@ -17,7 +17,8 @@ from typing import Any, Callable
 
 import yaml
 
-from hedge_fund.lab import runner
+from hedge_fund.lab import altdata, runner
+from hedge_fund.lab import ideas as _ideas
 from hedge_fund.lab.runner import Lab
 
 STRATEGIES_DIR = Path(__file__).resolve().parent.parent / "strategies"
@@ -70,6 +71,11 @@ def lab_status() -> dict:
         "holdouts_evaluated": sum(1 for h in holdouts if h["status"] == "evaluated"),
         "registry_records": lab.registry.verify(),
         "config_drift": lab.config_drift(),
+        "data_source": runner.data_source(),
+        "data_capabilities": _capabilities(),
+        "ideas": {s: n for s in _ideas.STATUSES
+                  if (n := sum(1 for i in _ideas.ideas(lab.registry) if i["status"] == s))},
+        "datasets": [d["name"] for d in altdata.list_datasets(lab.root)],
         "rules": [
             "Research data ends at research_end; asking for later data is refused and logged.",
             "Embargoed tickers are refused in research.",
@@ -78,6 +84,13 @@ def lab_status() -> dict:
             "Each candidate gets holdout_budget looks at the holdout, approved by a human.",
         ],
     }
+
+
+def _capabilities() -> dict:
+    if runner.data_source() == "fd":
+        return {"all": "Financial Datasets API (prices, fundamentals, earnings, news, insider trades)"}
+    from hedge_fund.lab.opendata.client import CAPABILITIES
+    return CAPABILITIES
 
 
 @_safe
@@ -197,7 +210,77 @@ def paper_scorecard(name: str) -> dict:
     return score(records).model_dump(mode="json")
 
 
+# ---------------------------------------------------------------------------
+# Idea ledger
+# ---------------------------------------------------------------------------
+
+@_safe
+def propose_idea(title: str, mechanism: str, prediction: str, kill_criteria: str, family: str,
+                 data_needed: str = "", data_sources: str = "", references: str = "",
+                 requested_by: str = "") -> dict:
+    """Record a falsifiable investment hypothesis. Refused (with a pointer) if it duplicates an existing idea.
+
+    mechanism: why the edge should exist and persist (who is on the other side?).
+    prediction: what a backtest should show if it's real (direction, horizon, universe).
+    kill_criteria: the result that would make you drop it.
+    family: short slug; tag every backtest of this idea with it.
+    data_needed / data_sources: what data, where it's public, and WHEN each record becomes public."""
+    return _ideas.propose(_lab().registry, title=title, mechanism=mechanism, prediction=prediction,
+                          kill_criteria=kill_criteria, family=family, data_needed=data_needed,
+                          data_sources=data_sources, references=references,
+                          proposed_by=requested_by or "unknown")
+
+
+@_safe
+def list_ideas(status: str = "", verbose: bool = False) -> dict:
+    """Every idea the lab has considered (newest first), with status, trial count and best trial. Check before proposing."""
+    return {"ideas": _ideas.listing(_lab().registry, status or None, verbose)}
+
+
+@_safe
+def update_idea(idea_id: str, status: str, note: str, requested_by: str = "") -> dict:
+    """Move an idea to proposed|needs_data|testing|alive|dead|holdout. A note (e.g. cause of death) is required."""
+    return _ideas.update(_lab().registry, idea_id, status, note, requested_by or "unknown")
+
+
+# ---------------------------------------------------------------------------
+# Alt-data store
+# ---------------------------------------------------------------------------
+
+@_safe
+def list_datasets() -> dict:
+    """Alt datasets analysts can read with data_client.get_events(name, ticker, end_date=date)."""
+    lab = _lab()
+    return {"datasets": [_research_view(lab, d) for d in altdata.list_datasets(lab.root)]}
+
+
+@_safe
+def describe_dataset(name: str) -> dict:
+    """One dataset's description, availability rule, fields and a few rows — research window only."""
+    lab = _lab()
+    view = _research_view(lab, altdata.meta(lab.root, name))
+    rows = [r for r in altdata.load(lab.root, name) if r["available_date"] <= lab.config.research_end
+            and r["ticker"] not in lab.config.embargoed_tickers]
+    view["sample_rows"] = rows[:3] + rows[-2:] if len(rows) > 5 else rows
+    return view
+
+
+def _research_view(lab: Lab, meta: dict) -> dict:
+    """Never reveal what the dataset says inside the holdout window."""
+    rows = [r for r in altdata.load(lab.root, meta["name"]) if r["available_date"] <= lab.config.research_end]
+    return {
+        "name": meta["name"], "description": meta["description"], "source": meta["source"],
+        "available_rule": meta["available_rule"], "fields": meta["fields"], "hash": meta["hash"],
+        "created_by": meta.get("created_by"), "research_rows": len(rows),
+        "research_tickers": len({r["ticker"] for r in rows}),
+        "first_available": rows[0]["available_date"] if rows else None,
+        "last_available_in_research": rows[-1]["available_date"] if rows else None,
+        "usage": f'data_client.get_events("{meta["name"]}", ticker, end_date=date)',
+    }
+
+
 TOOLS: list[Callable[..., Any]] = [
     lab_status, list_analysts, list_strategies, validate_mandate, run_backtest, list_trials,
     get_trial, candidate_report, request_holdout, list_holdouts, paper_funds, paper_scorecard,
+    propose_idea, list_ideas, update_idea, list_datasets, describe_dataset,
 ]

@@ -35,6 +35,7 @@ from hedge_fund.backtesting import backtest_fund
 from hedge_fund.data.protocol import DataClient
 from hedge_fund.data.sessions import completed_through
 from hedge_fund.fund import Fund, FundSpec, normalize_universe
+from hedge_fund.lab.altdata import EventsClient
 from hedge_fund.lab.config import LabConfig, lab_dir, load_config, save_config
 from hedge_fund.lab.registry import Registry, RegistryError
 from hedge_fund.lab.stats import deflated_sharpe, moments, returns_from_nav, sharpe
@@ -176,15 +177,24 @@ def _scorecard_brief(result) -> dict | None:
     }
 
 
+def data_source() -> str:
+    """`open` (scraped public sources, default) or `fd` (Financial Datasets API)."""
+    return os.environ.get("AIHF_DATA_SOURCE", "open").strip().lower() or "open"
+
+
 def _open_data(stack: ExitStack, data_client: DataClient | None) -> DataClient:
     if data_client is not None:
         return data_client
-    from hedge_fund.data import CachedDataClient, FDClient
-    from hedge_fund.tui.keys import apply_credentials
+    if data_source() == "fd":
+        from hedge_fund.data import CachedDataClient, FDClient
+        from hedge_fund.tui.keys import apply_credentials
 
-    apply_credentials()
-    raw = stack.enter_context(FDClient())
-    return CachedDataClient(raw)
+        apply_credentials()
+        raw = stack.enter_context(FDClient())
+        return CachedDataClient(raw)
+    from hedge_fund.lab.opendata import OpenDataClient
+
+    return OpenDataClient()
 
 
 def _save_result(lab: Lab, stem: str, result) -> Path:
@@ -229,6 +239,7 @@ def research_backtest(
         "candidate_id": cid, "mandate_name": spec.name, "spec": spec.model_dump(mode="json"),
         "universe": universe, "start": start, "end": end, "hypothesis": hypothesis,
         "family": family or None, "config_hash": cfg.config_hash(), **_caller(requested_by), **_git_state(),
+        "data_source": data_source() if data_client is None else type(data_client).__name__,
     }
     if spec.benchmark not in cfg.benchmark_whitelist:
         raise ValueError(f"benchmark {spec.benchmark} not in the lab whitelist {cfg.benchmark_whitelist}")
@@ -247,19 +258,23 @@ def research_backtest(
         raise VaultViolation("; ".join(problems))
 
     t0 = time.time()
+    vault = None
     with ExitStack() as stack:
         try:
             data = _open_data(stack, data_client)
-            vault = VaultedDataClient(data, research_end=cfg.research_end, embargoed=cfg.embargoed_tickers)
+            vault = VaultedDataClient(data, research_end=cfg.research_end, embargoed=cfg.embargoed_tickers,
+                                      lab_root=lab.root)
             result = backtest_fund(Fund(spec, blind=True), start, end, vault, universe)
         except VaultViolation as exc:
             rec = lab.registry.append("trial", {**base, "status": "vault_violation", "error": str(exc),
+                                                "datasets_used": vault.datasets_used if vault else {},
                                                 "duration_s": round(time.time() - t0, 2)},
                                       id_field="trial_id", id_prefix="T")
             return _summary(lab, rec["payload"])
         except Exception as exc:  # noqa: BLE001 — every failure is a registered attempt
             rec = lab.registry.append("trial", {**base, "status": "error",
                                                 "error": f"{type(exc).__name__}: {exc}",
+                                                "datasets_used": vault.datasets_used if vault else {},
                                                 "duration_s": round(time.time() - t0, 2)},
                                       id_field="trial_id", id_prefix="T")
             return _summary(lab, rec["payload"])
@@ -271,7 +286,7 @@ def research_backtest(
         **base, "status": "ok", "start": result.start, "end": result.end,
         "metrics": _metrics(result), "stats": stats, "returns": [round(r, 10) for r in rets],
         "scorecard": _scorecard_brief(result), "result_path": str(path),
-        "duration_s": round(time.time() - t0, 2),
+        "datasets_used": vault.datasets_used, "duration_s": round(time.time() - t0, 2),
     }, id_field="trial_id", id_prefix="T")
     return _summary(lab, rec["payload"])
 
@@ -287,7 +302,7 @@ def _summary(lab: Lab, trial: dict) -> dict:
     out = {k: trial.get(k) for k in (
         "trial_id", "candidate_id", "mandate_name", "status", "error", "universe", "start", "end",
         "family", "hypothesis", "requested_by", "kanban_task", "metrics", "result_path", "duration_s",
-        "git_sha", "git_dirty",
+        "git_sha", "git_dirty", "data_source", "datasets_used",
     ) if trial.get(k) is not None}
     if trial.get("status") == "ok":
         out["deflated"] = deflate(lab, trial.get("returns") or [])
@@ -394,7 +409,7 @@ def decide_holdout(lab: Lab, request_id: str, *, approve: bool, approver: str, n
     t0 = time.time()
     with ExitStack() as stack:
         try:
-            data = _open_data(stack, data_client)
+            data = EventsClient(_open_data(stack, data_client), lab.root)
             result = backtest_fund(Fund(spec, blind=True), start, end, data, req["universe"])
         except Exception as exc:  # noqa: BLE001 — a failed look is still a spent look
             lab.registry.append("holdout_result", {**base, "status": "error",
@@ -405,7 +420,7 @@ def decide_holdout(lab: Lab, request_id: str, *, approve: bool, approver: str, n
     deflated = deflate(lab, rets)
     lab.registry.append("holdout_result", {
         **base, "status": "ok", "start": result.start, "end": result.end, "metrics": _metrics(result),
-        "stats": stats, "deflated": deflated, "result_path": str(path),
+        "stats": stats, "deflated": deflated, "result_path": str(path), "datasets_used": data.datasets_used,
         "duration_s": round(time.time() - t0, 2),
     })
     return {"request_id": request_id, "status": "evaluated", "metrics": _metrics(result),

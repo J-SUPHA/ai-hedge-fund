@@ -76,6 +76,16 @@ for p in "${PROFILES[@]}"; do
   "$HERMES" -p "$p" config set mcp_servers.aihf_lab.timeout 3600 >/dev/null
 done
 
+# Lab skills (idea-farming, alt-data-ingest) into every profile, repo path rendered.
+for p in "${PROFILES[@]}"; do
+  for skill in "$REPO"/lab/hermes/skills/*/; do
+    name="$(basename "$skill")"
+    dest="$(profile_home "$p")/skills/aihf-lab/$name"
+    mkdir -p "$dest"
+    sed "s#{{REPO}}#$REPO#g" "$skill/SKILL.md" > "$dest/SKILL.md"
+  done
+done
+
 # The director routes work: give it the orchestrator kanban toolset.
 "$HERMES" -p director tools enable kanban >/dev/null
 
@@ -99,4 +109,10 @@ echo
 echo "Lab:      $("$LAB_BIN" status | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["lab_dir"], "· research_end", d["research_end"], "· trials", d["trials_counted"])')"
 echo "Profiles: ${PROFILES[*]}"
 echo "Board:    $BOARD   ($HERMES kanban --board $BOARD ls)"
-[[ $INSTALL_ROLES == 1 ]] || echo "Roles NOT installed. Review lab/hermes/roles/*.md, then: lab/hermes/setup.sh --install-roles"
+missing=""
+for p in "${PROFILES[@]}"; do grep -q "^# Role:" "$(profile_home "$p")/SOUL.md" 2>/dev/null || missing="$missing $p"; done
+if [[ -n "$missing" ]]; then
+  echo "Roles NOT installed for:$missing. Review lab/hermes/roles/*.md, then: lab/hermes/setup.sh --install-roles"
+else
+  echo "Roles:    installed (${PROFILES[*]})"
+fi

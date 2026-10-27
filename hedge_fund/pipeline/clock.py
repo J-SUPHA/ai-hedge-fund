@@ -265,6 +265,11 @@ class PinnedQuotes:
     def get_market_cap(self, ticker, end_date):
         return self._data.get_market_cap(ticker, end_date)
 
+    def __getattr__(self, name):
+        # Data clients may offer more than the protocol (e.g. a research lab's
+        # point-in-time `get_events`); analysts reach those through here too.
+        return getattr(self._data, name)
+
 
 def _session_stamp(session: str) -> str:
     """When a session's print was, absent a print time: the bar itself, or

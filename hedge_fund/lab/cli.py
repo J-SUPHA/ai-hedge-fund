@@ -10,6 +10,10 @@
     aihf-lab holdout list
     aihf-lab holdout approve H000007 --approver jai [--note "..."]
     aihf-lab holdout reject  H000007 --approver jai [--note "..."]
+    aihf-lab ideas [--status dead]        the idea ledger
+    aihf-lab data list
+    aihf-lab data import NAME rows.csv|rows.jsonl --description … --source URL --available-rule "…"
+                                          rows need ticker + available_date (when it became PUBLIC)
     aihf-lab serve-mcp                    MCP server over stdio (for Hermes)
 
 Holdout approval is CLI-only on purpose: the agents can ask, a human decides.
@@ -72,6 +76,22 @@ def _parser() -> argparse.ArgumentParser:
         d.add_argument("--approver", required=True, help="your name — recorded in the registry")
         d.add_argument("--note", default="")
 
+    idea = sub.add_parser("ideas", help="the idea ledger")
+    idea.add_argument("--status", default="")
+    idea.add_argument("--verbose", action="store_true")
+
+    data = sub.add_parser("data", help="alt-data store")
+    data_sub = data.add_subparsers(dest="action", required=True)
+    data_sub.add_parser("list")
+    imp = data_sub.add_parser("import", help="import a scraped dataset (CSV or JSONL)")
+    imp.add_argument("name")
+    imp.add_argument("path")
+    imp.add_argument("--description", required=True)
+    imp.add_argument("--source", required=True, help="where it was scraped from (URL)")
+    imp.add_argument("--available-rule", required=True,
+                     help="how available_date was set, e.g. 'disclosure filing date, not trade date'")
+    imp.add_argument("--created-by", default="")
+
     sub.add_parser("serve-mcp", help="MCP server over stdio")
     return p
 
@@ -119,6 +139,25 @@ def main() -> None:
             _print(runner.trial_summary(Lab(), args.trial_id) or {"error": f"no trial {args.trial_id}"})
         elif args.command == "candidate":
             _print(runner.candidate_report(Lab(), args.candidate_id))
+        elif args.command == "ideas":
+            from hedge_fund.lab import ideas as _ideas
+            _print(_ideas.listing(Lab().registry, args.status or None, args.verbose))
+        elif args.command == "data":
+            from hedge_fund.lab import altdata
+            lab = Lab()
+            if args.action == "list":
+                _print(tools.list_datasets())
+            else:
+                from pathlib import Path
+                path = Path(args.path).expanduser()
+                meta = dict(description=args.description, source=args.source,
+                            available_rule=args.available_rule,
+                            created_by=args.created_by or runner._caller(None)["requested_by"])
+                if path.suffix == ".jsonl":
+                    rows = [json.loads(l) for l in path.read_text().splitlines() if l.strip()]
+                    _print(altdata.write_dataset(lab.root, lab.registry, args.name, rows, **meta))
+                else:
+                    _print(altdata.import_csv(lab.root, lab.registry, args.name, path, **meta))
         elif args.command == "holdout":
             if args.action == "list":
                 _print(tools.list_holdouts())
