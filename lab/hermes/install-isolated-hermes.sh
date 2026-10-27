@@ -5,7 +5,11 @@
 #
 # What you get:
 #   <dir>/hermes-agent/          clean clone of NousResearch/hermes-agent at --ref (never edited)
-#   <dir>/hermes-agent/.venv     its own environment, built by Hermes' PM with the `mcp` extra
+#   <dir>/hermes-agent/.venv     dev environment built by Hermes' PM (with the `mcp` extra)
+#   <home>/installs, <home>/tools  the APPLICATION environment `hermes` actually runs in, plus
+#                                PM's tool closure; the `mcp` extra must be enabled HERE too
+#                                (`hermes pm install --extra mcp`), or MCP servers silently
+#                                fail to connect in chat sessions
 #   <dir>/bin/hermes-lab         launcher: HERMES_HOME=<home>, so state never touches ~/.hermes
 #   <home>/                      its own config, auth, profiles, kanban boards, Python tool store
 #
@@ -52,6 +56,10 @@ export HERMES_HOME="$LAB_HOME"
 exec "$SRC/.venv/bin/hermes" "\$@"
 EOF
 chmod +x "$DIR/bin/hermes-lab"
+
+# The application environment needs the mcp extra too (tool closure first).
+"$DIR/bin/hermes-lab" pm install --tools-only
+"$DIR/bin/hermes-lab" pm install --extra mcp
 
 "$DIR/bin/hermes-lab" --version | head -1
 "$DIR/bin/hermes-lab" profile show default | awk '/^Path:/ {print "home:    " $2}' || true

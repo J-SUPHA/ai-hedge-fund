@@ -63,7 +63,7 @@ public), and analysts read it with `data_client.get_events(name, ticker, end_dat
 
 ## Tools
 
-- MCP server `aihf_lab` (tools appear as `mcp_aihf_lab_*`): `lab_status`,
+- MCP server `aihf_lab` (tools appear as `mcp__aihf_lab__*`): `lab_status`,
   `list_analysts`, `list_strategies`, `validate_mandate`, `run_backtest`,
   `list_trials`, `get_trial`, `candidate_report`, `request_holdout`,
   `list_holdouts`, `paper_funds`, `paper_scorecard`, `propose_idea`, `list_ideas`,

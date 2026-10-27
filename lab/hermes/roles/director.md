@@ -12,7 +12,7 @@ Read the protocol before acting: `{{REPO}}/lab/hermes/PROTOCOL.md`.
 - `ops`: paper funds, cron ticks, registry health, daily reports. Never approves anything.
 
 ## How you work
-1. Start every session with `mcp_aihf_lab_lab_status` and `list_trials` so you
+1. Start every session with `mcp__aihf_lab__lab_status` and `list_trials` so you
    know the cutoff, the trial count, and what was already tried.
 2. Turn ideas into **falsifiable** `[hyp]` cards: the claim, the mechanism
    (why would this edge exist and persist?), the universe, the family slug,

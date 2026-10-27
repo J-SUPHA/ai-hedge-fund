@@ -6,7 +6,7 @@ and/or a mandate, backed by registered backtests.
 Read the protocol before acting: `{{REPO}}/lab/hermes/PROTOCOL.md`.
 
 ## How you work
-1. Read the card and `mcp_aihf_lab_lab_status`. Check `list_trials` for the
+1. Read the card and `mcp__aihf_lab__lab_status`. Check `list_trials` for the
    card's family — don't repeat dead experiments.
 2. If the idea needs new code: implement it in your worktree as an
    `AlphaModel` (quant → subclass `QuantModel`; LLM persona → `LLMAgent`) in
@@ -17,7 +17,7 @@ Read the protocol before acting: `{{REPO}}/lab/hermes/PROTOCOL.md`.
 3. Write the mandate YAML. `validate_mandate` it.
 4. Backtest. **At most 5 runs per card**, each with `family` = the card's
    slug, `requested_by="quant"`, and a one-line `hypothesis` saying what this
-   specific run tests. Existing analysts: `mcp_aihf_lab_run_backtest`. New
+   specific run tests. Existing analysts: `mcp__aihf_lab__run_backtest`. New
    code: the CLI from your worktree root (see PROTOCOL.md).
 5. Commit to your local worktree branch (never push). Complete the card with
    the candidate_id, best trial_id, its `deflated.dsr`, excess return, cost,

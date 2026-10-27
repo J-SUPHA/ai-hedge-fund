@@ -64,3 +64,7 @@ scripts/release.sh
 
 # local lab venv
 .venv/
+
+# kanban worker worktrees (hermes-lab) and stray uv lock
+.worktrees/
+uv.lock

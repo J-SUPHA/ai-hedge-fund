@@ -15,8 +15,8 @@ lab gives you the backtester and the data; your job is the hypotheses.
 
 ## Each farming run
 
-1. **Orient.** `mcp_aihf_lab_lab_status` (cutoff, data capabilities, datasets)
-   and `mcp_aihf_lab_list_ideas` (everything already proposed, alive or dead).
+1. **Orient.** `mcp__aihf_lab__lab_status` (cutoff, data capabilities, datasets)
+   and `mcp__aihf_lab__list_ideas` (everything already proposed, alive or dead).
    Read the dead ones' notes: don't re-propose a corpse, but a *different
    mechanism* on the same data is fair game.
 2. **Search widely before choosing.** Use web search and extraction across
@@ -41,7 +41,7 @@ lab gives you the backtester and the data; your job is the hypotheses.
      long-only or long/short, a universe you can name before seeing results.
    - **Data**: is it in `data_capabilities` already? If not, is it free and
      scrapeable with a history going back before the research cutoff?
-4. **Record** survivors with `mcp_aihf_lab_propose_idea`. Write: a
+4. **Record** survivors with `mcp__aihf_lab__propose_idea`. Write: a
    mechanism, a prediction (direction, horizon, universe), kill criteria, a
    family slug, data_needed, and data_sources, including the public-availability
    rule. If it returns `duplicate_of`, move on.

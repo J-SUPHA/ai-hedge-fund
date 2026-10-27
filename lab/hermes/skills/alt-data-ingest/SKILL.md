@@ -35,7 +35,7 @@ Turn a public source into a dataset analysts can read without lookahead.
    {{REPO}}/.venv/bin/aihf-lab data import <name> rows.csv \
      --description "…" --source "<url>" --available-rule "<how available_date was set>"
    ```
-   Then `mcp_aihf_lab_describe_dataset` to check the research-window rows.
+   Then `mcp__aihf_lab__describe_dataset` to check the research-window rows.
 6. **Use it from an analyst** (in your worktree):
    ```python
    rows = data_client.get_events("<name>", ticker, end_date=date)   # only rows public by `date`
